@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -m py_compile /Users/duclm/projects/scripts/k8s/main.py)",
+      "Bash(ls -la /Users/duclm/projects/scripts/k8s/commands/*.py)",
+      "Bash(wc -l /Users/duclm/projects/scripts/*.py)",
+      "Bash(python3 -m py_compile /Users/duclm/projects/scripts/git.py /Users/duclm/projects/scripts/jacoco.py)",
+      "Bash(python -c \":*)",
+      "Bash(python -m file_format --help)",
+      "Bash(python -m file_format /tmp/test_in.csv /tmp/test_out_no_ext 2)",
+      "Bash(1 echo:*)",
+      "Bash(python git.py --help)",
+      "Bash(grep -l \"from utils\" k8s/commands/*.py)",
+      "Bash(grep -n \"from k8s.core\\\\|from utils\\\\|from k8s.utils\" k8s/commands/*.py k8s/main.py)",
+      "Bash(python shell/create_tree.py --help)"
+    ]
+  }
+}
