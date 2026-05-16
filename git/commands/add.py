@@ -8,8 +8,8 @@ from core.logger import Logger
 
 @Command.register("add", help="Add repository to config", args=[
     arg("repository", help="Repository path (e.g., user/repo)"),
-    arg("--folder", help="Local folder name"),
-    arg("--branch", help="Branch name"),
+    arg("--folder", "-f", help="Local folder name"),
+    arg("--branch", "-b", help="Branch name"),
 ])
 class AddCommand:
     def __init__(self, git):

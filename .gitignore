@@ -8,3 +8,6 @@
 **/*.xml
 uv.lock
 *.csv
+
+_input/**
+_output/**

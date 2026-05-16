@@ -1,0 +1,49 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# awscli — example configuration file
+#
+# Copy to one of:
+#   .awscli.yaml           (current directory, project-scoped)
+#   ~/.awscli/config.yaml  (user-wide default)
+#
+# All values below are the built-in defaults.
+# Environment variables take precedence over file values:
+#   AWSCLI_REGION, AWSCLI_PROFILE, AWSCLI_ROLE, AWSCLI_OUTPUT,
+#   AWSCLI_LOG_LEVEL, AWSCLI_DRY_RUN, AWSCLI_CACHE_TTL
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Default AWS region for all API calls.
+region: us-east-1
+
+# Named AWS credential profile from ~/.aws/credentials (null = default chain).
+profile: null
+
+# Role to assume for all commands (alias or full ARN).  Defined in roles: below.
+role: null
+
+# Output format: table | json | yaml | csv
+output: table
+
+# Logging verbosity: DEBUG | INFO | WARNING | ERROR
+log_level: INFO
+
+# Response cache TTL in seconds (0 = never cache).
+cache_ttl: 300
+
+# Set to false to disable caching globally.
+cache_enabled: true
+
+# Enable dry-run mode globally (preview mutations without executing them).
+dry_run: false
+
+# Prompt before destructive operations (overridden by --yes flag).
+confirm_destructive: true
+
+# Default maximum number of results for paginated list commands.
+max_results: 100
+
+# ── Role aliases ───────────────────────────────────────────────────────────────
+# Define short aliases for IAM role ARNs.  Use with --role or the `role` key above.
+roles:
+  # dev:  arn:aws:iam::123456789012:role/DevRole
+  # prod: arn:aws:iam::123456789012:role/ProdRole
+  # ro:   arn:aws:iam::123456789012:role/ReadOnlyRole

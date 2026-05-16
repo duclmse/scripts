@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>VS Code-like File Browser</title>
+    <!-- Font Awesome for icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        body {
+            overflow: hidden;
+        }
+        /* VS Code dark theme colors */
+        :root {
+            --bg-primary: #1e1e1e;
+            --bg-secondary: #252526;
+            --bg-activity: #333333;
+            --bg-status: #007acc;
+            --text-primary: #cccccc;
+            --text-secondary: #9d9d9d;
+            --border-color: #3c3c3c;
+            --hover-bg: #2a2d2e;
+            --tab-inactive: #2d2d2d;
+            --tab-active: #1e1e1e;
+        }
+        .layout {
+            display: grid;
+            grid-template-columns: 48px 250px 1fr;
+            grid-template-rows: 1fr 22px;
+            height: 100vh;
+            width: 100vw;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+        }
+        /* Activity Bar */
+        .activity-bar {
+            grid-column: 1;
+            grid-row: 1 / -1;
+            background: var(--bg-activity);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding-top: 10px;
+            border-right: 1px solid var(--border-color);
+        }
+        .activity-bar i {
+            font-size: 24px;
+            margin-bottom: 20px;
+            color: #858585;
+            cursor: pointer;
+        }
+        .activity-bar i.active {
+            color: white;
+            border-left: 2px solid white;
+            padding-left: 4px;
+        }
+        .activity-bar i:last-child {
+            margin-top: auto;
+            margin-bottom: 10px;
+        }
+        /* Sidebar (File Explorer) */
+        .sidebar {
+            grid-column: 2;
+            grid-row: 1;
+            background: var(--bg-secondary);
+            border-right: 1px solid var(--border-color);
+            overflow-y: auto;
+            padding: 10px 0;
+        }
+        .explorer-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px 5px 10px;
+            color: var(--text-secondary);
+            font-size: 11px;
+            font-weight: bold;
+            text-transform: uppercase;
+        }
+        .explorer-header i {
+            font-size: 14px;
+            cursor: pointer;
+        }
+        /* File Tree */
+        .tree {
+            list-style: none;
+            padding-left: 0;
+            font-size: 13px;
+        }
+        .tree-item {
+            cursor: pointer;
+            padding: 3px 0 3px 10px;
+            display: flex;
+            align-items: center;
+            white-space: nowrap;
+        }
+        .tree-item:hover {
+            background: var(--hover-bg);
+        }
+        .tree-item i {
+            width: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-right: 5px;
+        }
+        .tree-item .fa-folder, .tree-item .fa-folder-open {
+            color: #dcb67a;
+        }
+        .tree-item .fa-file {
+            color: #9d9d9d;
+        }
+        .tree-item .name {
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .tree-children {
+            list-style: none;
+            padding-left: 20px;
+        }
+        .hidden {
+            display: none;
+        }
+        /* Main Area */
+        .main {
+            grid-column: 3;
+            grid-row: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            background: var(--bg-primary);
+        }
+        /* Tabs */
+        .tabs {
+            display: flex;
+            background: var(--bg-secondary);
+            border-bottom: 1px solid var(--border-color);
+            overflow-x: auto;
+            overflow-y: hidden;
+            height: 35px;
+            align-items: center;
+        }
+        .tab {
+            background: var(--tab-inactive);
+            color: var(--text-secondary);
+            border-right: 1px solid var(--border-color);
+            padding: 8px 15px;
+            font-size: 13px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            cursor: pointer;
+            min-width: 100px;
+            max-width: 200px;
+            justify-content: space-between;
+            height: 100%;
+        }
+        .tab.active {
+            background: var(--tab-active);
+            color: white;
+        }
+        .tab i {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+        .tab i:hover {
+            opacity: 1;
+        }
+        .tab span {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        /* Content Area */
+        .content {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            background: var(--bg-primary);
+        }
+        .content pre {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 10px;
+            border-radius: 3px;
+            border: 1px solid var(--border-color);
+            font-family: 'Consolas', 'Courier New', monospace;
+            white-space: pre-wrap;
+        }
+        /* Status Bar */
+        .status-bar {
+            grid-column: 2 / -1;
+            grid-row: 2;
+            background: var(--bg-status);
+            color: white;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0 10px;
+            font-size: 12px;
+        }
+        .status-left, .status-right {
+            display: flex;
+            gap: 15px;
+        }
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+    </style>
+</head>
+<body>
+<div class="layout">
+    <!-- Activity Bar -->
+    <div class="activity-bar">
+        <i class="fas fa-files active"></i>
+        <i class="fas fa-search"></i>
+        <i class="fas fa-code-branch"></i>
+        <i class="fas fa-bug"></i>
+        <i class="fas fa-tasks"></i>
+        <i class="fas fa-user"></i>
+        <i class="fas fa-gear"></i>
+    </div>
+
+    <!-- Sidebar (File Explorer) -->
+    <div class="sidebar">
+        <div class="explorer-header">
+            <span>EXPLORER</span>
+            <i class="fas fa-ellipsis-h"></i>
+        </div>
+        <div id="file-tree"></div>
+    </div>
+
+    <!-- Main Area -->
+    <div class="main">
+        <div class="tabs" id="tabs"></div>
+        <div class="content" id="content"></div>
+    </div>
+
+    <!-- Status Bar -->
+    <div class="status-bar">
+        <div class="status-left">
+            <div class="status-item"><i class="fas fa-code-branch"></i> main</div>
+            <div class="status-item"><i class="fas fa-times-circle"></i> 0</div>
+            <div class="status-item"><i class="fas fa-exclamation-triangle"></i> 0</div>
+        </div>
+        <div class="status-right">
+            <div class="status-item">UTF-8</div>
+            <div class="status-item">LF</div>
+            <div class="status-item">TypeScript</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // Mock file tree data
+    const fileTreeData = [
+        {
+            name: 'src',
+            type: 'folder',
+            children: [
+                { name: 'index.js', type: 'file', content: '// index.js\nconsole.log("Hello, world!");' },
+                { name: 'styles.css', type: 'file', content: '/* styles.css */\nbody { background: #1e1e1e; }' },
+                {
+                    name: 'components',
+                    type: 'folder',
+                    children: [
+                        { name: 'App.js', type: 'file', content: '// App.js\nimport React from "react";' },
+                        { name: 'Button.js', type: 'file', content: '// Button.js\nexport const Button = () => {};' }
+                    ]
+                }
+            ]
+        },
+        {
+            name: 'public',
+            type: 'folder',
+            children: [
+                { name: 'index.html', type: 'file', content: '<!DOCTYPE html>\n<html>\n<head>\n  <title>App</title>\n</head>\n<body>\n  <div id="root"></div>\n</body>\n</html>' }
+            ]
+        },
+        { name: 'package.json', type: 'file', content: '{\n  "name": "my-app",\n  "version": "1.0.0"\n}' }
+    ];
+
+    // State
+    let openFiles = [];  // { path, name, content }
+    let activeFilePath = null;
+
+    // Helper to create a unique path (using full path from root)
+    function getFullPath(item, parentPath = '') {
+        return parentPath ? `${parentPath}/${item.name}` : item.name;
+    }
+
+    // Render file tree recursively
+    function renderTree(container, items, parentPath = '') {
+        const ul = document.createElement('ul');
+        ul.className = 'tree';
+        items.forEach(item => {
+            const li = document.createElement('li');
+            const path = getFullPath(item, parentPath);
+            if (item.type === 'folder') {
+                // Folder item
+                const div = document.createElement('div');
+                div.className = 'tree-item';
+                div.setAttribute('data-path', path);
+                div.setAttribute('data-type', 'folder');
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-folder';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'name';
+                nameSpan.textContent = item.name;
+                div.appendChild(icon);
+                div.appendChild(nameSpan);
+                li.appendChild(div);
+
+                // Children container
+                const childrenContainer = document.createElement('ul');
+                childrenContainer.className = 'tree-children hidden';
+                if (item.children && item.children.length) {
+                    renderTree(childrenContainer, item.children, path);
+                }
+                li.appendChild(childrenContainer);
+
+                // Toggle folder on click
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    childrenContainer.classList.toggle('hidden');
+                    // Toggle icon
+                    if (childrenContainer.classList.contains('hidden')) {
+                        icon.className = 'fas fa-folder';
+                    } else {
+                        icon.className = 'fas fa-folder-open';
+                    }
+                });
+            } else {
+                // File item
+                const div = document.createElement('div');
+                div.className = 'tree-item';
+                div.setAttribute('data-path', path);
+                div.setAttribute('data-type', 'file');
+                div.setAttribute('data-content', item.content || '');
+                const icon = document.createElement('i');
+                icon.className = 'fas fa-file';
+                const nameSpan = document.createElement('span');
+                nameSpan.className = 'name';
+                nameSpan.textContent = item.name;
+                div.appendChild(icon);
+                div.appendChild(nameSpan);
+                li.appendChild(div);
+
+                // Click on file opens it
+                div.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openFile(path, item.name, item.content);
+                });
+            }
+            ul.appendChild(li);
+        });
+        container.appendChild(ul);
+    }
+
+    // Open a file (add to tabs if new, then activate)
+    function openFile(path, name, content) {
+        // Check if already open
+        let file = openFiles.find(f => f.path === path);
+        if (!file) {
+            file = { path, name, content };
+            openFiles.push(file);
+        }
+        // Set active
+        activeFilePath = path;
+        renderTabs();
+        renderContent(path);
+    }
+
+    // Close a tab
+    function closeTab(path, event) {
+        event.stopPropagation();
+        const index = openFiles.findIndex(f => f.path === path);
+        if (index !== -1) {
+            openFiles.splice(index, 1);
+        }
+        // If we closed the active tab, activate another if any
+        if (activeFilePath === path) {
+            if (openFiles.length > 0) {
+                activeFilePath = openFiles[0].path;
+            } else {
+                activeFilePath = null;
+            }
+        }
+        renderTabs();
+        renderContent(activeFilePath);
+    }
+
+    // Render tabs based on openFiles
+    function renderTabs() {
+        const tabsContainer = document.getElementById('tabs');
+        tabsContainer.innerHTML = '';
+        openFiles.forEach(file => {
+            const tab = document.createElement('div');
+            tab.className = `tab ${activeFilePath === file.path ? 'active' : ''}`;
+            tab.setAttribute('data-path', file.path);
+            const nameSpan = document.createElement('span');
+            nameSpan.textContent = file.name;
+            const closeIcon = document.createElement('i');
+            closeIcon.className = 'fas fa-times';
+            closeIcon.addEventListener('click', (e) => closeTab(file.path, e));
+            tab.appendChild(nameSpan);
+            tab.appendChild(closeIcon);
+            tab.addEventListener('click', () => {
+                activeFilePath = file.path;
+                renderTabs();
+                renderContent(file.path);
+            });
+            tabsContainer.appendChild(tab);
+        });
+        // If no tabs, show empty (or welcome)
+    }
+
+    // Render file content in main area
+    function renderContent(path) {
+        const contentDiv = document.getElementById('content');
+        if (!path) {
+            contentDiv.innerHTML = '<pre>No file open</pre>';
+            return;
+        }
+        const file = openFiles.find(f => f.path === path);
+        if (file) {
+            contentDiv.innerHTML = `<pre>${escapeHtml(file.content)}</pre>`;
+        } else {
+            contentDiv.innerHTML = '<pre>File not found</pre>';
+        }
+    }
+
+    // Simple escape for HTML (to display code safely)
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+
+    // Initialize file tree
+    const treeContainer = document.getElementById('file-tree');
+    renderTree(treeContainer, fileTreeData);
+
+    // Optionally open a default file (e.g., index.js)
+    // Find index.js in src
+    function findDefaultFile() {
+        const srcFolder = fileTreeData.find(f => f.name === 'src' && f.type === 'folder');
+        if (srcFolder && srcFolder.children) {
+            const indexJs = srcFolder.children.find(f => f.name === 'index.js');
+            if (indexJs) {
+                openFile('src/index.js', indexJs.name, indexJs.content);
+            }
+        }
+    }
+    findDefaultFile();
+</script>
+</body>
+</html>

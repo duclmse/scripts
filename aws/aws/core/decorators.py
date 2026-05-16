@@ -76,31 +76,16 @@ def mutating(destructive: bool = False) -> Callable:
 
 
 class CommandGroup:
-    """A named group of related sub-commands.
+    """A named group of related sub-commands."""
 
-    Obtain an instance via :meth:`Command.group` rather than instantiating
-    directly::
-
-        pods = Command.group("pods", help="Pod operations")
-
-        @pods.register("list", help="List pods", args=[...])
-        def pods_list(context, args): ...
-
-        @pods.register("delete", help="Delete a pod", args=[...])
-        class PodsDelete:
-            def __init__(self, context): ...
-            def execute(self, args): ...
-    """
-
-    def __init__(self, name: str, help: str = "", aliases: list[str] = []) -> None:
+    def __init__(self, name: str, help: str = "", aliases: list[str] | None = None) -> None:
         self.name = name
         self.help = help
-        self.aliases = aliases
-        # Canonical entries in registration order (no alias duplicates).
+        self.aliases = aliases or []
         self._entries: list[dict] = []
         self._subgroups: dict[str, "CommandGroup"] = {}
 
-    def group(self, name: str, help: str = "", aliases: list[str] = []) -> "CommandGroup":
+    def group(self, name: str, help: str = "", aliases: list[str] | None = None) -> "CommandGroup":
         """Create (or retrieve) a nested sub-group."""
         if name not in self._subgroups:
             qualified = f"{self.name}:{name}"
@@ -134,12 +119,13 @@ class CommandGroup:
         return decorator
 
     def _attach(self, group_parser: argparse.ArgumentParser) -> None:
-        """Build the nested subparser tree under *group_parser*."""
+        """Recursively attach all entries and nested sub-groups as subparsers."""
         subparsers = group_parser.add_subparsers(dest="subcommand")
         for entry in self._entries:
             key = f"{self.name}:{entry['name']}"
-            sub = subparsers.add_parser(entry["name"], aliases=entry["aliases"], help=entry["help"])
-            # Stash the lookup key so Command.resolve() works in O(1).
+            sub = subparsers.add_parser(
+                entry["name"], aliases=entry["aliases"], help=entry["help"]
+            )
             sub.set_defaults(_command_key=key)
             for arg_adder in entry["args"]:
                 arg_adder(sub)
@@ -179,78 +165,39 @@ class Command:
 
     @classmethod
     def group(cls, name: str, help: str = "", aliases: list[str] = []) -> CommandGroup:
-        """Create (or retrieve) a named command group.
-
-        Example::
-
-            pods = Command.group("pods", help="Pod operations")
-
-            @pods.register("list", help="List pods")
-            def pods_list(context, args): ...
-        """
+        """Create (or retrieve) a named top-level command group."""
         if name not in cls._groups:
             cls._groups[name] = CommandGroup(name, help, aliases)
         return cls._groups[name]
 
     @classmethod
     def build_parser(cls, parser: argparse.ArgumentParser) -> argparse.ArgumentParser:
-        """Attach all commands **and** groups as subparsers.
-
-        Drop-in replacement for the manual ``register_commands()`` call::
-
-            # before
-            register_commands(parser, Command.get_all_commands())
-
-            # after  ← also picks up CommandGroups
-            Command.build_parser(parser)
-
-        Pair with :meth:`resolve` for dispatch.
-        """
+        """Attach all registered commands and groups as subparsers."""
         subparsers = parser.add_subparsers(dest="command")
 
-        for name, meta in cls.get_all_commands().items():
+        # Flat (non-group) commands — skip group:subcmd entries.
+        for name, meta in cls._plugins.items():
+            if ":" in name:
+                continue
             sub = subparsers.add_parser(name, aliases=meta["aliases"], help=meta["help"])
             sub.set_defaults(_command_key=name)
             for arg_adder in meta["args"]:
                 arg_adder(sub)
 
+        # Top-level groups (with recursive nesting via _attach).
         for grp in cls._groups.values():
-            grp_parser = subparsers.add_parser(grp.name, help=grp.help)
+            grp_parser = subparsers.add_parser(grp.name, aliases=grp.aliases, help=grp.help)
             grp._attach(grp_parser)
 
         return parser
 
     @classmethod
     def resolve(cls, args: argparse.Namespace):
-        """Return the command class to invoke from parsed *args*.
-
-        Works for both flat commands and nested group commands.
-        Drop-in replacement for ``Command.get_command(args.command)``::
-
-            # before (flat commands only)
-            cmd_class = Command.get_command(args.command)
-
-            # after  ← also handles group sub-commands
-            cmd_class = Command.resolve(args)
-        """
+        """Return the command class to invoke, or None if no command matched."""
         key = getattr(args, "_command_key", None)
-        return None if key is None else cls.get_command(key)
-
-    @classmethod
-    def get_all_commands(cls):
-        """Get all registered **flat** commands (unique — aliases and group sub-commands excluded)."""
-        seen = set()
-        commands = {}
-
-        for name, metadata in cls._plugins.items():
-            if ":" in name:           # skip group:subcmd entries
-                continue
-            cmd_class = metadata["class"]
-            if cmd_class not in seen:
-                seen.add(cmd_class)
-                commands[name] = metadata
-
-        return commands
+        if key is None:
+            return None
+        return cls.get_command(key)
 
     @classmethod
     def get_command(cls, name: str):
